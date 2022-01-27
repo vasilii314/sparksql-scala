@@ -45,28 +45,47 @@ object NOAAData {
 
     val stations = spark.createDataFrame(stationRDD, sschema).cache()
 
+    data2017.createOrReplaceTempView("data2017")
 
-    val tmax2017 = data2017.where($"mtype" === "TMAX").limit(100).drop("mtype").withColumnRenamed("value", "tmax")
-//    tmax2017.describe().show()
+    val pureSQL = spark.sql(
+      """
+        |SELECT sid, date, (((tmin + tmax) / 2) * 1.8 + 32) AS tave
+        |FROM
+        |(SELECT sid, date, value AS tmax
+        |FROM data2017
+        |WHERE mtype = "TMAX"
+        |LIMIT 1000)
+        |JOIN
+        |(SELECT sid, date, value AS tmin
+        |FROM data2017
+        |WHERE mtype = "TMIN"
+        |LIMIT 1000)
+        |USING (sid, date)
+        |""".stripMargin)
 
-    val tmin2017 = data2017.where($"mtype" === "TMIN").limit(100).drop("mtype").withColumnRenamed("value", "tmin")
-//    tmin2017.describe().show()
+    pureSQL.show()
 
-    val combinedTemps2017 = tmax2017.join(tmin2017, Seq("sid", "date"))
-//    combinedTemps2017.show()
-
-    val averageTemp2017 = combinedTemps2017.select($"sid", $"date", ($"tmax" + $"tmin") / 2).withColumnRenamed("((tmax + tmin) / 2)", "tave")
-//    averageTemp2017.show()
-
-    val stationTemps2017 = averageTemp2017.groupBy($"sid").agg(avg($"tave"))
-//    stationTemps2017.show()
-//    stations.show()
-
-    val joinedData = stationTemps2017.join(stations, "sid")
-//    joinedData.show()
-
-
-//    averageTemp2017.show()
+//    val tmax2017 = data2017.where($"mtype" === "TMAX").limit(100).drop("mtype").withColumnRenamed("value", "tmax")
+////    tmax2017.describe().show()
+//
+//    val tmin2017 = data2017.where($"mtype" === "TMIN").limit(100).drop("mtype").withColumnRenamed("value", "tmin")
+////    tmin2017.describe().show()
+//
+//    val combinedTemps2017 = tmax2017.join(tmin2017, Seq("sid", "date"))
+////    combinedTemps2017.show()
+//
+//    val averageTemp2017 = combinedTemps2017.select($"sid", $"date", ($"tmax" + $"tmin") / 2).withColumnRenamed("((tmax + tmin) / 2)", "tave")
+////    averageTemp2017.show()
+//
+//    val stationTemps2017 = averageTemp2017.groupBy($"sid").agg(avg($"tave"))
+////    stationTemps2017.show()
+////    stations.show()
+//
+//    val joinedData = stationTemps2017.join(stations, "sid")
+////    joinedData.show()
+//
+//
+////    averageTemp2017.show()
     spark.stop()
   }
 }
